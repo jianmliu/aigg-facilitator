@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -261,6 +262,8 @@ type facilitatorEvmSigner struct {
 	client         *ethclient.Client
 	chainID        *big.Int
 	receiptTimeout time.Duration
+	nonces         *nonceManager
+	sendMu         sync.Mutex
 }
 
 func newFacilitatorEvmSigner(privateKeyHex string, rpcURL string, receiptTimeout time.Duration) (*facilitatorEvmSigner, error) {
@@ -286,7 +289,41 @@ func newFacilitatorEvmSigner(privateKeyHex string, rpcURL string, receiptTimeout
 		client:         client,
 		chainID:        chainID,
 		receiptTimeout: receiptTimeout,
+		nonces:         newNonceManager(),
 	}, nil
+}
+
+type nonceManager struct {
+	mu   sync.Mutex
+	next *uint64
+}
+
+func newNonceManager() *nonceManager {
+	return &nonceManager{}
+}
+
+func (m *nonceManager) Next(ctx context.Context, fetch func(context.Context) (uint64, error)) (uint64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.next == nil {
+		nonce, err := fetch(ctx)
+		if err != nil {
+			return 0, err
+		}
+		m.next = new(uint64)
+		*m.next = nonce
+	}
+
+	nonce := *m.next
+	*m.next = nonce + 1
+	return nonce, nil
+}
+
+func (m *nonceManager) Reset() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.next = nil
 }
 
 func (s *facilitatorEvmSigner) GetAddresses() []string {
@@ -429,11 +466,6 @@ func (s *facilitatorEvmSigner) SendTransaction(ctx context.Context, to string, d
 }
 
 func (s *facilitatorEvmSigner) sendTransaction(ctx context.Context, to common.Address, data []byte) (string, error) {
-	nonce, err := s.client.PendingNonceAt(ctx, s.address)
-	if err != nil {
-		return "", fmt.Errorf("get nonce: %w", err)
-	}
-
 	call := ethereum.CallMsg{From: s.address, To: &to, Data: data}
 	gasLimit, err := s.client.EstimateGas(ctx, call)
 	if err != nil {
@@ -454,6 +486,16 @@ func (s *facilitatorEvmSigner) sendTransaction(ctx context.Context, to common.Ad
 	}
 	feeCap := new(big.Int).Add(new(big.Int).Mul(header.BaseFee, big.NewInt(2)), tipCap)
 
+	s.sendMu.Lock()
+	defer s.sendMu.Unlock()
+
+	nonce, err := s.nonces.Next(ctx, func(ctx context.Context) (uint64, error) {
+		return s.client.PendingNonceAt(ctx, s.address)
+	})
+	if err != nil {
+		return "", fmt.Errorf("get nonce: %w", err)
+	}
+
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   new(big.Int).Set(s.chainID),
 		Nonce:     nonce,
@@ -470,6 +512,7 @@ func (s *facilitatorEvmSigner) sendTransaction(ctx context.Context, to common.Ad
 		return "", fmt.Errorf("sign transaction: %w", err)
 	}
 	if err := s.client.SendTransaction(ctx, signedTx); err != nil {
+		s.nonces.Reset()
 		return "", fmt.Errorf("send transaction: %w", err)
 	}
 	return signedTx.Hash().Hex(), nil
