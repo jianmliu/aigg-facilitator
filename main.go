@@ -105,7 +105,7 @@ func main() {
 	mux.HandleFunc("/v1/x402/settle", srv.settle)
 
 	log.Printf(
-		"sub2api official x402 facilitator listening on %s network=%s signer=%s rpc_chain_id=%s",
+		"AI.GG official x402 facilitator listening on %s network=%s signer=%s rpc_chain_id=%s",
 		cfg.listenAddr,
 		cfg.network,
 		signer.address.Hex(),

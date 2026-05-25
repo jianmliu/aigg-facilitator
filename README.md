@@ -1,6 +1,6 @@
-# sub2api-facilitator
+# aigg-facilitator
 
-Self-hosted x402 facilitator for Sub2API/AI.GG.
+Self-hosted x402 facilitator for AI.GG.
 
 This service is built on the official `github.com/x402-foundation/x402/go` facilitator SDK and
 registers the official EVM `exact` scheme for one configured network.
@@ -15,7 +15,7 @@ registers the official EVM `exact` scheme for one configured network.
 - `POST /v1/x402/verify`
 - `POST /v1/x402/settle`
 
-The `/v1/x402/*` routes are kept for Sub2API's existing facilitator URL integration.
+The `/v1/x402/*` routes are kept for AI.GG's existing facilitator URL integration.
 
 ## Configuration
 
@@ -48,5 +48,5 @@ Base production assets currently used by AI.GG:
 - USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
 - GCT: `0x7CCb0D3F16C9Ea94a189E14C1d92f6561D707fa4`
 
-The asset address, token name, and token version are supplied by the Sub2API payment requirement
+The asset address, token name, and token version are supplied by the AI.GG payment requirement
 payload, so the facilitator does not maintain a separate asset whitelist.

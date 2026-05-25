@@ -1,4 +1,4 @@
-module github.com/jianmliu/sub2api-facilitator
+module github.com/jianmliu/aigg-facilitator
 
 go 1.24.0
 
